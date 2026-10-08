@@ -6,15 +6,15 @@
 #define ELECTRON_SHELL_COMMON_GIN_HELPER_CONSTRUCTIBLE_H_
 
 #include <concepts>
-#include <memory>
 #include <type_traits>
 
 #include "gin/arguments.h"
-#include "gin/per_context_data.h"
+#include "gin/per_isolate_data.h"
 #include "gin/public/wrapper_info.h"
 #include "gin/wrappable.h"
 #include "shell/common/gin_helper/event_emitter_template.h"
 #include "shell/common/gin_helper/function_template_extensions.h"
+#include "shell/common/gin_helper/per_isolate_template_data.h"
 #include "v8/include/v8-context.h"
 
 namespace gin_helper {
@@ -82,15 +82,11 @@ class Constructible {
       v8::Isolate* const isolate,
       v8::Local<v8::Context> context,
       const gin::WrapperInfo* const wrapper_info) {
-    gin::PerContextData* data = gin::PerContextData::From(context);
-    CHECK(data);
+    v8::Local<v8::FunctionTemplate> constructor =
+        PerIsolateTemplateData::GetFunctionTemplate(isolate, wrapper_info);
+    if (!constructor.IsEmpty())
+      return constructor;
 
-    auto* constructor_data = static_cast<PerContextConstructorData*>(
-        data->GetUserData(wrapper_info));
-    if (constructor_data)
-      return constructor_data->function_template.Get(isolate);
-
-    v8::Local<v8::FunctionTemplate> constructor;
     if (!gin::CreateConstructorFunctionTemplate(isolate,
                                                 base::BindRepeating(&T::New))
              .ToLocal(&constructor)) {
@@ -116,22 +112,14 @@ class Constructible {
       T::FillInstanceTemplate(isolate, constructor->InstanceTemplate());
     }
 
+    gin::PerIsolateData* data = gin::PerIsolateData::From(isolate);
+    CHECK(data);
     data->SetObjectTemplate(wrapper_info, constructor->InstanceTemplate());
-    data->SetUserData(wrapper_info, std::make_unique<PerContextConstructorData>(
-                                        isolate, constructor));
+    PerIsolateTemplateData::SetFunctionTemplate(isolate, wrapper_info,
+                                                constructor);
 
     return constructor;
   }
-
- private:
-  class PerContextConstructorData : public base::SupportsUserData::Data {
-   public:
-    PerContextConstructorData(v8::Isolate* isolate,
-                              v8::Local<v8::FunctionTemplate> function_template)
-        : function_template(isolate, function_template) {}
-
-    v8::Global<v8::FunctionTemplate> function_template;
-  };
 };
 
 inline bool ThrowIfNotConstructCall(gin::Arguments* args) {

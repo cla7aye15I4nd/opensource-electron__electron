@@ -60,7 +60,7 @@ Converter<gin_helper::AccessorValue<content::RenderFrameHost*>>::ToV8(
 
   // The two ids are packed into a BigInt rather than stored in the internal
   // fields of an object because building such an object requires an
-  // ObjectTemplate and caching via gin::PerContextData which is not
+  // ObjectTemplate and caching via gin::PerIsolateData which is not
   // necessary here as the token never reaches JS, it is only the payload
   // of the native data property installed by gin_helper::Dictionary::SetGetter.
   const uint64_t token = (static_cast<uint64_t>(static_cast<uint32_t>(
